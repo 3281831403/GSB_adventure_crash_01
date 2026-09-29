@@ -7,19 +7,61 @@ directions = {
     'south': (0, 1),
 }
 
-position = (0, 0)
+start_position = (0, 0)
 
-while True:
-    location = locations[position]
-    print 'you are at the %s' % location
 
-    valid_directions = {}
-    for k, v in directions.iteritems():
-        possible_position = (position[0] + v[0], position[1] + v[1])
-        possible_location = locations.get(possible_position)
-        if possible_location:
-            print 'to the %s is a %s' % (k, possible_location)
-            valid_directions[k] = possible_position
+def normalize_direction(raw):
+    """Return the canonical direction name, or None if input is not text."""
+    if not isinstance(raw, str):
+        return None
+    return raw.strip().lower()
 
-    direction = raw_input('which direction do you want to go?\n')
-    position = valid_directions[direction]
+
+def available_moves(position):
+    """Return {direction: new_position} for moves that stay on the map."""
+    moves = {}
+    for name in sorted(directions):
+        dx, dy = directions[name]
+        candidate = (position[0] + dx, position[1] + dy)
+        if candidate in locations:
+            moves[name] = candidate
+    return moves
+
+
+def move(position, raw_direction):
+    """Return the new position for a valid move, or None for an invalid one.
+
+    Never raises for bad input and never mutates position, directions or
+    locations, so a rejected call leaves state untouched and can be retried.
+    """
+    name = normalize_direction(raw_direction)
+    if name is None:
+        return None
+    return available_moves(position).get(name)
+
+
+def main(input_fn=input, output=print):
+    position = start_position
+    while True:
+        output('you are at the %s' % locations[position])
+
+        moves = available_moves(position)
+        for name in sorted(moves):
+            output('to the %s is a %s' % (name, locations[moves[name]]))
+
+        try:
+            raw = input_fn('which direction do you want to go?\n')
+        except EOFError:
+            output('goodbye')
+            return position
+
+        new_position = move(position, raw)
+        if new_position is None:
+            output("you can't go %r, try one of: %s"
+                   % (raw, ', '.join(sorted(moves))))
+            continue
+        position = new_position
+
+
+if __name__ == '__main__':
+    main()
