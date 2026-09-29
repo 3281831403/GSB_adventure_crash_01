@@ -1,5 +1,12 @@
 from data import locations
 
+try:
+    input = raw_input
+except NameError:
+    pass
+
+
+# Direction name -> coordinate delta.
 directions = {
     'west': (-1, 0),
     'east': (1, 0),
@@ -7,19 +14,80 @@ directions = {
     'south': (0, 1),
 }
 
-position = (0, 0)
+# Fixed order so advertised exits never depend on hash or dict iteration order.
+CANONICAL_DIRECTIONS = ('west', 'east', 'north', 'south')
 
-while True:
-    location = locations[position]
-    print 'you are at the %s' % location
+INVALID_MESSAGE = "you can't go that way"
 
-    valid_directions = {}
-    for k, v in directions.iteritems():
-        possible_position = (position[0] + v[0], position[1] + v[1])
-        possible_location = locations.get(possible_position)
-        if possible_location:
-            print 'to the %s is a %s' % (k, possible_location)
-            valid_directions[k] = possible_position
+START_POSITION = (0, 0)
 
-    direction = raw_input('which direction do you want to go?\n')
-    position = valid_directions[direction]
+
+def normalize_direction(text):
+    """Return the canonical direction name for user input.
+
+    Leading/trailing whitespace and letter case are ignored. Unknown or
+    non-text input returns None instead of raising.
+    """
+    try:
+        name = text.strip().lower()
+    except AttributeError:
+        return None
+    if name in directions:
+        return name
+    return None
+
+
+def exits(position):
+    """Return a deterministic list of (direction, destination) for exits."""
+    result = []
+    for name in CANONICAL_DIRECTIONS:
+        delta_x, delta_y = directions[name]
+        possible_position = (position[0] + delta_x, position[1] + delta_y)
+        if possible_position in locations:
+            result.append((name, possible_position))
+    return result
+
+
+def move(position, direction_text):
+    """Attempt one move.
+
+    Returns (new_position, message). On an invalid direction the position is
+    returned unchanged together with a readable message: the attempted move
+    is fully rolled back and no state is mutated.
+    """
+    name = normalize_direction(direction_text)
+    destinations = dict(exits(position))
+    if name is None or name not in destinations:
+        return position, INVALID_MESSAGE
+    return destinations[name], None
+
+
+def describe(position):
+    """Return the lines shown to the player for one turn."""
+    lines = ['you are at the %s' % locations[position]]
+    for name, possible_position in exits(position):
+        lines.append('to the %s is a %s'
+                     % (name, locations[possible_position]))
+    return lines
+
+
+def play(position=START_POSITION, reader=input, writer=print):
+    """Run the game loop; invalid directions report and continue."""
+    while True:
+        for line in describe(position):
+            writer(line)
+        try:
+            direction_text = reader('which direction do you want to go?\n')
+        except EOFError:
+            return position
+        position, message = move(position, direction_text)
+        if message is not None:
+            writer(message)
+
+
+def main():
+    play()
+
+
+if __name__ == '__main__':
+    main()
